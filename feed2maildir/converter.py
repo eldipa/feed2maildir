@@ -11,6 +11,8 @@ else:
 
 import dateutil.parser
 
+from subprocess import Popen, PIPE
+
 # Python 2.x compabitlity
 if sys.version[0] == '2':
     FileNotFoundError = IOError
@@ -55,6 +57,28 @@ class HTMLStripper(HTMLParser):
                 out += '  [{}]: {}\n'.format(l, self.links[l])
         return out
 
+class ExternalHTMLStripper:
+    def __init__(self, strip_program):
+        self.strip_program = strip_program
+        self.reset()
+
+    def feed(self, data):
+        self.raw_data.append(data)
+
+    def close(self):
+        p = Popen(self.strip_program, stdin=PIPE, stdout=PIPE, shell=True)
+        input_ = u''.join(self.raw_data).encode('utf-8')
+        output, _ = p.communicate(input_)
+
+        self.stripped = output.decode('utf-8')
+
+    def reset(self):
+        self.raw_data = []
+        self.stripped = u''
+
+    def get_data(self):
+        return self.stripped
+
 class Converter:
     """Compares the already parsed feeds and converts new ones to maildir"""
 
@@ -71,14 +95,16 @@ Content-Type: text/plain
 """
 
     def __init__(self, db='~/.f2mdb', maildir='~/mail/feeds', strip=False,
-                 links=False, silent=False):
+                 strip_program=None, links=False, silent=False):
         self.silent = silent
         self.maildir = os.path.expanduser(maildir)
         self.db = os.path.expanduser(db)
         self.links = links
         self.strip = strip
-        if self.strip:
+        if self.strip and strip_program is None:
             self.stripper = HTMLStripper()
+        elif self.strip:
+            self.stripper = ExternalHTMLStripper(strip_program)
 
         try: # to read the database
             with open(self.db, 'r') as f:
