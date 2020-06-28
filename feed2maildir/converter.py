@@ -179,19 +179,26 @@ Content-Type: text/plain
                 except:
                     sys.exit('ERROR: accessing "{}" failed'.format(fullname))
 
+    def post_description(self, post):
+        try:
+            return post.content[0].value
+        except:
+            return post.description
+
+
     def compose(self, title, post):
         """Compose the mail using the tempate"""
         try: # to get the update/publish time from the post
             updated = post.updated
         except: # the property is not set, use now()
             updated = datetime.datetime.now()
+
         desc = ''
         if not self.links:
+            desc = self.post_description(post)
             if self.strip:
-                self.stripper.feed(post.description)
+                self.stripper.feed(desc)
                 desc = self.stripper.get_data()
-            else:
-                desc = post.description
         return self.TEMPLATE.format(updated, post.title, title, post.link,
                                     desc)
 
