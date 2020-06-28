@@ -295,6 +295,12 @@ Content-Type: text/plain
                 except:
                     sys.exit('ERROR: accessing "{}" failed'.format(fullname))
 
+    def post_description(self, post):
+        try:
+            return post.content[0].value
+        except:
+            return post.description
+
     def normalize_updated_date(self, post):
         """Return when the post was updated as RFC 2822 format.
         If the post has not this date specified, assume "now"
@@ -315,8 +321,9 @@ Content-Type: text/plain
         """Return the description of the post after the stripping process."""
         desc = ''
         if not self.links:
+            desc = self.post_description(post)
             if self.strip:
-                self.stripper.feed(post.description)
+                self.stripper.feed(desc)
                 self.stripper.close()
                 desc = self.stripper.get_data()
                 self.stripper.reset()
