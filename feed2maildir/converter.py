@@ -197,19 +197,14 @@ Content-Type: text/plain
     def feed_update_time(self, feed):
         # find the newest post and get its time
         newest_post_time = self.find_update_time(feed)
-
         try: # to get the update time from the feed itself
             feed_time = self.mktime(feed.feed.updated)
         except:
-            feed_time = None
-
-        if feed_time is None:
             return newest_post_time
-        else:
-            # some feeds like Youtube does not update the feed's update time.
-            # the value 'feed_time' is a valid date but outdated so
-            # we have to compare it with the posts' times and get the latest.
-            return max(newest_post_time, feed_time)
+        # Some feeds like Youtube do not update the feed's update time.
+        # The value 'feed_time' is a valid date, but outdated so
+        # we have to compare it with the posts' times and get the latest.
+        return max(newest_post_time, feed_time)
 
     def check_maildir(self, maildir):
         """Check access to the maildir and try to create it if not present"""
