@@ -106,7 +106,7 @@ Content-Type: text/plain
                  strip_program=None, links=False, silent=False):
         self.silent = silent
         self.maildir = os.path.expanduser(maildir)
-        self.db = os.path.expanduser(db)
+        self.dbfile = os.path.expanduser(db)
         self.links = links
         self.strip = strip
         if self.strip and strip_program is None:
@@ -115,13 +115,13 @@ Content-Type: text/plain
             self.stripper = ExternalHTMLStripper(strip_program)
 
         try: # to read the database
-            with open(self.db, 'r') as f:
+            with open(self.dbfile, 'r') as f:
                 self.dbdata = json.loads(f.read())
         except FileNotFoundError:
-            self.dbdata = None
+            self.dbdata = {}
         except ValueError:
             self.output('WARNING: database is malformed and will be ignored')
-            self.dbdata = None
+            self.dbdata = {}
 
     def run(self):
         """Do a full run"""
@@ -154,7 +154,7 @@ Content-Type: text/plain
             try: # to find the old update time in the db
                 oldtime = self.mktime(db[feedname]).astimezone(
                             dateutil.tz.tzutc())
-            except: # it is not there
+            except KeyError: # it is not there
                 oldtime = None
             if oldtime and not oldtime.tzinfo: # force UTC
                 oldtime = oldtime.replace(tzinfo=dateutil.tz.tzutc())
@@ -176,7 +176,7 @@ Content-Type: text/plain
 
         if writedb:
             if not dbfile: # use own dbfile as default
-                dbfile = self.db
+                dbfile = self.dbfile
             try: # to write the new database
                 with open(dbfile, 'w') as f:
                     f.write(json.dumps(newtimes))
