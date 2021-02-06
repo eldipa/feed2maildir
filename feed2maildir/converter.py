@@ -130,7 +130,9 @@ Content-Type: text/plain
             self.news = self.find_new(self.feeds, self.dbdata)
             for newfeed, posts in self.news.items():
                 for newpost in posts:
-                    self.write(self.compose(newfeed, newpost))
+                    updated = self.normalize_updated_date(newpost)
+                    desc = self.normalize_description(newpost)
+                    self.write(self.compose(newfeed, newpost, updated, desc))
 
     def load(self, feeds):
         """Load a list of feeds in feedparser-dict form"""
@@ -223,8 +225,10 @@ Content-Type: text/plain
                 except:
                     sys.exit('ERROR: accessing "{}" failed'.format(fullname))
 
-    def compose(self, title, post):
-        """Compose the mail using the tempate"""
+    def normalize_updated_date(self, post):
+        """Return when the post was updated as RFC 2822 format.
+        If the post has not this date specified, assume "now"
+        as the updated date."""
         try: # to get the update/publish time from the post
             updated = post.updated
             updated = dateutil.parser.parse(updated)
@@ -235,6 +239,10 @@ Content-Type: text/plain
         d = time.mktime(updated.timetuple())
         updated = email.utils.formatdate(d, usegmt=True)
 
+        return updated
+
+    def normalize_description(self, post):
+        """Return the description of the post after the stripping process."""
         desc = ''
         if not self.links:
             if self.strip:
@@ -244,7 +252,12 @@ Content-Type: text/plain
                 self.stripper.reset()
             else:
                 desc = post.description
-        return self.TEMPLATE.format(updated, post.title, title, post.link,
+
+        return desc
+
+    def compose(self, feed, post, updated, desc):
+        """Compose the mail using the tempate"""
+        return self.TEMPLATE.format(updated, post.title, feed, post.link,
                                     desc)
 
     def write(self, message):
