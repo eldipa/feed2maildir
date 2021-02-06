@@ -4,6 +4,7 @@ import os
 import random
 import sys
 import time
+import hashlib
 
 if sys.version[0] == '2':
     from HTMLParser import HTMLParser
@@ -103,7 +104,8 @@ Content-Type: text/plain
 """
 
     def __init__(self, db='~/.f2mdb', maildir='~/mail/feeds', strip=False,
-                 strip_program=None, links=False, silent=False):
+                 strip_program=None, links=False, silent=False,
+                 filter_duplicated=False):
         self.silent = silent
         self.maildir = os.path.expanduser(maildir)
         self.dbfile = os.path.expanduser(db)
@@ -123,6 +125,10 @@ Content-Type: text/plain
             self.output('WARNING: database is malformed and will be ignored')
             self.dbdata = {}
 
+        self._filter_duplicated = filter_duplicated
+        self.posts_seen = set()
+        self.novel_posts_seen = []
+
     def run(self):
         """Do a full run"""
         if self.feeds:
@@ -132,6 +138,10 @@ Content-Type: text/plain
                 for newpost in posts:
                     updated = self.normalize_updated_date(newpost)
                     desc = self.normalize_description(newpost)
+
+                    if self.filter_duplicated(newfeed, newpost, updated, desc):
+                        continue
+
                     self.write(self.compose(newfeed, newpost, updated, desc))
 
     def load(self, feeds):
@@ -259,6 +269,35 @@ Content-Type: text/plain
         """Compose the mail using the tempate"""
         return self.TEMPLATE.format(updated, post.title, feed, post.link,
                                     desc)
+
+    def hash_post(self, feed, post, desc):
+        """Return a MD5 sum of the feed, post's link and post's description
+        to have a single identifier for the post based on its content."""
+        h = hashlib.md5()
+
+        h.update(feed.encode('utf8'))
+        h.update(post.link.encode('utf8'))
+        h.update(desc.encode('utf8'))
+
+        return h.digest()
+
+    def filter_duplicated(self, feed, post, updated, desc):
+        """Filter duplicated posts based on their content even
+        if their updated date say that their are fresh posts.
+        Return if the post was filtered or not.
+        If this feature is not enabled, return False always."""
+        if not self._filter_duplicated:
+            return False
+
+        h = self.hash_post(feed, post, desc)
+
+        if h in self.posts_seen:
+            return True
+
+        self.posts_seen.add(h)
+        self.novel_posts_seen.append((updated, h))
+
+        return False
 
     def write(self, message):
         """Take a message and write it to a mail"""
