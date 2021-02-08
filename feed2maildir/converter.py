@@ -227,12 +227,13 @@ Content-Type: text/plain
         """Compose the mail using the tempate"""
         try: # to get the update/publish time from the post
             updated = post.updated
+            updated = dateutil.parser.parse(updated)
         except: # the property is not set, use now()
             updated = datetime.datetime.now()
 
         # convert the time to RFC 2822 format, expected by MUA programs
-        d = dateutil.parser.parse(updated)
-        updated = email.utils.formatdate(time.mktime(d.timetuple()), usegmt=True)
+        d = time.mktime(updated.timetuple())
+        updated = email.utils.formatdate(d, usegmt=True)
 
         desc = ''
         if not self.links:
