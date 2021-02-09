@@ -91,6 +91,7 @@ class ExternalHTMLStripper:
 class Converter:
     """Compares the already parsed feeds and converts new ones to maildir"""
 
+    DB_SCHEME = 1
     TEMPLATE = u"""MIME-Version: 1.0
 Date: {}
 Subject: {}
@@ -116,24 +117,63 @@ Content-Type: text/plain
         elif self.strip:
             self.stripper = ExternalHTMLStripper(strip_program)
 
+        self.load_database()
+        self._filter_duplicated = filter_duplicated
+
+    def load_database(self, dbfile=None):
+        if not dbfile: # use own dbfile as default
+            dbfile = self.dbfile
         try: # to read the database
             with open(self.dbfile, 'r') as f:
-                self.dbdata = json.loads(f.read())
+                dbdata = json.loads(f.read())
         except FileNotFoundError:
-            self.dbdata = {}
+            dbdata = {}
         except ValueError:
             self.output('WARNING: database is malformed and will be ignored')
-            self.dbdata = {}
+            dbdata = {}
 
-        self._filter_duplicated = filter_duplicated
-        self.posts_seen = set()
-        self.novel_posts_seen = []
+        # latest database scheme:
+        #   {
+        #       'posts_seen': { hash : when seen },
+        #       'feeds_checked' : { feedname : when updated },
+        #       'feed2maildir_db_scheme': version
+        #   }
+        #
+        # database scheme 0:
+        #   { feedname : when updated }
+        if 'feed2maildir_db_scheme' not in dbdata:
+            db_scheme = 0
+            posts_seen = {}
+            feeds_last_time_checked = dbdata
+        else:
+            db_scheme = dbdata['feed2maildir_db_scheme']
+            posts_seen = dbdata.pop('posts_seen', {})
+            feeds_last_time_checked = dbdata.pop('feeds_last_time_checked', {})
+
+        if db_scheme > Converter.DB_SCHEME:
+            self.output('WARNING: database has a newer and unsupported scheme. Please upgrade feed2maildir. Abort.')
+            sys.exit(1)
+        elif db_scheme < Converter.DB_SCHEME:
+            self.output('Note: database scheme (%i) will be upgraded to the latest scheme (%i)' % (db_scheme, Converter.DB_SCHEME))
+
+        # We will upgrade the scheme if needed
+        self.db_scheme = Converter.DB_SCHEME
+
+        self.feeds_last_time_checked = feeds_last_time_checked
+
+        # load a post hash and when the post was seen. Filter out
+        # the posts that are too old (to maintain the database size under
+        # control)
+        now = datetime.datetime.now()
+        expiration_days = 120   # quite arbitrary
+        self.posts_seen = {post_hash:when for post_hash, when in posts_seen.items() if (now-self.mktime(when)).days < expiration_days}
 
     def run(self):
         """Do a full run"""
         if self.feeds:
             self.check_maildir(self.maildir)
-            self.news, self.newtimes = self.find_new(self.feeds, self.dbdata)
+            old_feeds = self.feeds_last_time_checked
+            self.news, self.newtimes = self.find_new(self.feeds, old_feeds)
             try:
                 self.compose_emails()
             finally:
@@ -197,12 +237,20 @@ Content-Type: text/plain
     def update_database(self, dbfile=None):
         """Update the database, optionally saving it in an
         alternative file."""
-        newtimes = self.newtimes
+        assert self.db_scheme == Converter.DB_SCHEME
+
         if not dbfile: # use own dbfile as default
             dbfile = self.dbfile
+
+        db = {
+                'posts_seen': {h:self.strtime(w) for h, w in self.posts_seen.items()},
+                'feeds_last_time_checked': self.newtimes,
+                'feed2maildir_db_scheme': Converter.DB_SCHEME
+                }
+
         try: # to write the new database
             with open(dbfile, 'w') as f:
-                f.write(json.dumps(newtimes))
+                f.write(json.dumps(db))
         except:
             self.output('WARNING: failed to write the new database')
 
@@ -301,14 +349,12 @@ Content-Type: text/plain
             return False
 
         h = self.hash_post(feed, post, desc)
+        is_duplicated = h in self.posts_seen
 
-        if h in self.posts_seen:
-            return True
+        assert isinstance(updated, str) # it is already serialized
+        self.posts_seen[h] = updated
 
-        self.posts_seen.add(h)
-        self.novel_posts_seen.append((updated, h))
-
-        return False
+        return is_duplicated
 
     def write(self, message):
         """Take a message and write it to a mail"""
