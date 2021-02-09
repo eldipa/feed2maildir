@@ -133,24 +133,32 @@ Content-Type: text/plain
         """Do a full run"""
         if self.feeds:
             self.check_maildir(self.maildir)
-            self.news = self.find_new(self.feeds, self.dbdata)
-            for newfeed, posts in self.news.items():
-                for newpost in posts:
-                    updated = self.normalize_updated_date(newpost)
-                    desc = self.normalize_description(newpost)
+            self.news, self.newtimes = self.find_new(self.feeds, self.dbdata)
+            try:
+                self.compose_emails()
+            finally:
+                self.update_database()
 
-                    if self.filter_duplicated(newfeed, newpost, updated, desc):
-                        continue
+    def compose_emails(self):
+        """Compose an email for each new post, optionally ignoring
+        duplicated posts."""
+        for newfeed, posts in self.news.items():
+            for newpost in posts:
+                updated = self.normalize_updated_date(newpost)
+                desc = self.normalize_description(newpost)
 
-                    self.write(self.compose(newfeed, newpost, updated, desc))
+                if self.filter_duplicated(newfeed, newpost, updated, desc):
+                    continue
+
+                self.write(self.compose(newfeed, newpost, updated, desc))
 
     def load(self, feeds):
         """Load a list of feeds in feedparser-dict form"""
         self.feeds = feeds
 
-    def find_new(self, feeds, db, writedb=True, dbfile=None):
-        """Find the new posts by comparing them to the db, by default
-        refreshing the db"""
+    def find_new(self, feeds, db):
+        """Find the new posts by comparing them to the db, return
+        the new posts and the new update time for the feeds read."""
         new = {}
         newtimes = {}
         for feed in feeds:
@@ -181,19 +189,22 @@ Content-Type: text/plain
                             new[feedaliasname].append(post)
                         except: # it is the first one, make a new list
                             new[feedaliasname] = [post, ]
-            if writedb:
-                newtimes[feedname] = feedup.strftime('%Y-%m-%d %H:%M:%S %Z')
 
-        if writedb:
-            if not dbfile: # use own dbfile as default
-                dbfile = self.dbfile
-            try: # to write the new database
-                with open(dbfile, 'w') as f:
-                    f.write(json.dumps(newtimes))
-            except:
-                self.output('WARNING: failed to write the new database')
+            newtimes[feedname] = feedup.strftime('%Y-%m-%d %H:%M:%S %Z')
 
-        return new
+        return new, newtimes
+
+    def update_database(self, dbfile=None):
+        """Update the database, optionally saving it in an
+        alternative file."""
+        newtimes = self.newtimes
+        if not dbfile: # use own dbfile as default
+            dbfile = self.dbfile
+        try: # to write the new database
+            with open(dbfile, 'w') as f:
+                f.write(json.dumps(newtimes))
+        except:
+            self.output('WARNING: failed to write the new database')
 
     def post_update_time(self, post):
         """Try to get the post time"""
