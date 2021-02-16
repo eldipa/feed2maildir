@@ -164,9 +164,10 @@ Content-Type: text/plain
         # load a post hash and when the post was seen. Filter out
         # the posts that are too old (to maintain the database size under
         # control)
+        # we use "naive" (local) datetime.
         now = datetime.datetime.now()
         expiration_days = 120   # quite arbitrary
-        self.posts_seen = {post_hash:when for post_hash, when in posts_seen.items() if (now-self.mktime(when)).days < expiration_days}
+        self.posts_seen = {post_hash:when for post_hash, when in posts_seen.items() if (now-self.mktime(when).replace(tzinfo=None)).days < expiration_days}
 
     def run(self):
         """Do a full run"""
@@ -243,7 +244,7 @@ Content-Type: text/plain
             dbfile = self.dbfile
 
         db = {
-                'posts_seen': {h:self.strtime(w) for h, w in self.posts_seen.items()},
+                'posts_seen': {h:w for h, w in self.posts_seen.items()},
                 'feeds_last_time_checked': self.newtimes,
                 'feed2maildir_db_scheme': Converter.DB_SCHEME
                 }
@@ -338,7 +339,7 @@ Content-Type: text/plain
         h.update(post.link.encode('utf8'))
         h.update(desc.encode('utf8'))
 
-        return h.digest()
+        return h.hexdigest()
 
     def filter_duplicated(self, feed, post, updated, desc):
         """Filter duplicated posts based on their content even
@@ -352,7 +353,11 @@ Content-Type: text/plain
         is_duplicated = h in self.posts_seen
 
         assert isinstance(updated, str) # it is already serialized
-        self.posts_seen[h] = updated
+
+        # probably not needed but to be consistent: we use the same
+        # format for the date serialization than the used for the date
+        # of the feeds
+        self.posts_seen[h] = self.mktime(updated).strftime('%Y-%m-%d %H:%M:%S %Z')
 
         return is_duplicated
 
