@@ -331,22 +331,21 @@ Content-Type: text/plain
                                     desc)
 
     def hash_post(self, feed, post, desc):
-        """Return a MD5 sum of the feed, post's link and post's description
-        to have a single identifier for the post based on its content."""
+        """Return a MD5 sum of the feed and post's link
+        to have a single identifier."""
         h = hashlib.md5()
 
         h.update(feed.encode('utf8'))
         h.update(post.link.encode('utf8'))
-        h.update(desc.encode('utf8'))
 
         return h.hexdigest()
 
     def filter_duplicated(self, feed, post, updated, desc):
-        """Filter duplicated posts based on their content even
+        """Filter duplicated posts based on their links even
         if their updated date say that their are fresh posts.
         Return if the post was filtered or not.
         If this feature is not enabled, return False always."""
-        if not self._filter_duplicated:
+        if feed not in self._filter_duplicated:
             return False
 
         h = self.hash_post(feed, post, desc)

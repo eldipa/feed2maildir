@@ -25,8 +25,8 @@ def main():
     parser.add_argument('-S', metavar='<program>',
                         dest='strip_program', default=None,
                         help='strip HTML from the feed content using an external program')
-    parser.add_argument('--filter-duplicated', action='store_true',
-                        help='filter duplicated posts by content')
+    parser.add_argument('--filter-duplicated', nargs='*', default=[],
+                        help="selected feeds to be filter by duplicated posts' links")
     args = vars(parser.parse_args())
 
     if args['c']:
