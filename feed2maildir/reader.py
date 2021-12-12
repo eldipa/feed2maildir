@@ -13,8 +13,8 @@ class Reader:
         self.silent = silent
         with ThreadPool(processes=njobs) as pool:
             for feed, f in pool.imap_unordered(fetch_and_parse_feed, feeds.items()):
-                if f.bozo:
-                    self.output('WARNING: could not parse feed {}'.format(feed))
+                if f.bozo and not isinstance(f.bozo_exception, feedparser.CharacterEncodingOverride):
+                    self.output('WARNING: could not parse feed {}: {}'.format(feed, f.bozo_exception))
                 else:
                     f.feed_alias_name = feed # user provided text
                     self.feeds.append(f)
