@@ -185,7 +185,7 @@ Content-Type: text/plain
         duplicated posts."""
         for newfeed, posts in self.news.items():
             for newpost in posts:
-                updated = self.normalize_updated_date(newpost)
+                updated = self.normalize_updated_date(newfeed, newpost)
                 desc = self.normalize_description(newpost)
 
                 if self.filter_duplicated(newfeed, newpost, updated, desc):
@@ -301,7 +301,7 @@ Content-Type: text/plain
         except:
             return post.description
 
-    def normalize_updated_date(self, post):
+    def normalize_updated_date(self, feed, post):
         """Return when the post was updated as RFC 2822 format.
         If the post has not this date specified, assume "now"
         as the updated date."""
@@ -310,6 +310,15 @@ Content-Type: text/plain
             updated = dateutil.parser.parse(updated)
         except: # the property is not set, use now()
             updated = datetime.datetime.now()
+
+
+        # XXX TODO
+        # This is a hack to *delay* the emails from LWN that are paid
+        # to be shown only when the full article is available. Typically
+        # 3 weeks later.
+        if feed == 'LWN' and post.title.startswith('[$]'):
+            _3weeks = datetime.timedelta(days=21)
+            updated += _3weeks
 
         # convert the time to RFC 2822 format, expected by MUA programs
         d = time.mktime(updated.timetuple())
