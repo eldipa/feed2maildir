@@ -343,7 +343,7 @@ Content-Type: text/plain
 
     def compose(self, feed, post, updated, desc):
         """Compose the mail using the tempate"""
-        return self.TEMPLATE.format(updated, post.title, feed, post.link,
+        return self.TEMPLATE.format(updated, post.title.replace('\n', ' - '), feed, post.link,
                                     desc)
 
     def hash_post(self, feed, post, desc):
